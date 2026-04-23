@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "firebase/auth";
@@ -96,7 +96,7 @@ const GlobalStyle = () => (
     .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
     .photo-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color var(--transition); position: relative; }
     .photo-card:hover { border-color: var(--gold); }
-    .photo-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+    .photo-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; cursor: zoom-in; }
     .photo-desc-edit { width: 100%; padding: 8px 12px; background: var(--surface); border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--cream); min-height: 60px; display: block; }
     .photo-desc-view { padding: 10px 12px; font-size: 0.88rem; color: var(--muted); line-height: 1.5; font-style: italic; }
 
@@ -119,8 +119,9 @@ const GlobalStyle = () => (
     .btn-ghost:hover { color: var(--cream); border-color: var(--muted); }
     .btn-sm { padding: 6px 14px; font-size: 0.68rem; }
 
-    .app-header { border-bottom: 1px solid var(--border); padding: 0 32px; height: 60px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: rgba(15,14,11,.92); backdrop-filter: blur(12px); z-index: 10; }
-    .app-logo { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: .18em; color: var(--gold); text-transform: uppercase; cursor: pointer; }
+    .app-header { border-bottom: 1px solid var(--border); padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: rgba(15,14,11,.92); backdrop-filter: blur(12px); z-index: 10; }
+    .app-logo-img { height: 44px; width: 44px; object-fit: contain; cursor: pointer; border-radius: 8px; }
+    .app-logo-text { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: .18em; color: var(--gold); text-transform: uppercase; cursor: pointer; }
     .app-logo-sep { color: var(--border); margin: 0 4px; }
     .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 
@@ -156,8 +157,54 @@ const GlobalStyle = () => (
     .upload-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px 40px; text-align: center; font-family: var(--font-ui); font-size: .85rem; color: var(--muted); letter-spacing: .08em; }
     .upload-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Lightbox ── */
+    .lightbox { position: fixed; inset: 0; background: rgba(5,4,3,.96); z-index: 300; display: flex; align-items: center; justify-content: center; animation: fadeIn .2s ease; }
+    .lightbox-img { max-width: calc(100vw - 120px); max-height: calc(100vh - 120px); object-fit: contain; border-radius: 2px; box-shadow: 0 20px 60px rgba(0,0,0,.6); user-select: none; }
+    .lightbox-close { position: fixed; top: 20px; right: 24px; width: 40px; height: 40px; border-radius: 50%; background: rgba(40,36,30,.9); border: 1px solid var(--border); color: var(--muted); font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); z-index: 301; }
+    .lightbox-close:hover { color: var(--cream); border-color: var(--gold); }
+    .lightbox-arrow { position: fixed; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(40,36,30,.9); border: 1px solid var(--border); color: var(--muted); font-size: 1.3rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); z-index: 301; }
+    .lightbox-arrow:hover { color: var(--cream); border-color: var(--gold); background: rgba(60,54,44,.95); }
+    .lightbox-arrow.prev { left: 16px; }
+    .lightbox-arrow.next { right: 16px; }
+    .lightbox-arrow:disabled { opacity: 0.2; cursor: default; }
+    .lightbox-info { position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 24px; background: linear-gradient(transparent, rgba(5,4,3,.9)); text-align: center; }
+    .lightbox-desc { font-family: var(--font-body); font-style: italic; font-size: 1rem; color: var(--muted); }
+    .lightbox-counter { font-family: var(--font-ui); font-size: 0.7rem; letter-spacing: .1em; color: var(--border); margin-top: 4px; }
   `}</style>
 );
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+function Lightbox({ photos, startIndex, onClose }) {
+  const [idx, setIdx] = useState(startIndex);
+  const photo = photos[idx];
+
+  const prev = useCallback(() => setIdx(i => Math.max(0, i - 1)), []);
+  const next = useCallback(() => setIdx(i => Math.min(photos.length - 1, i + 1)), [photos.length]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, prev, next]);
+
+  return (
+    <div className="lightbox" onClick={e => e.target === e.currentTarget && onClose()}>
+      <button className="lightbox-close" onClick={onClose}>✕</button>
+      <button className="lightbox-arrow prev" onClick={prev} disabled={idx === 0}>‹</button>
+      <img className="lightbox-img" src={photo.url} alt={photo.desc || ""} />
+      <button className="lightbox-arrow next" onClick={next} disabled={idx === photos.length - 1}>›</button>
+      <div className="lightbox-info">
+        {photo.desc && <div className="lightbox-desc">{photo.desc}</div>}
+        <div className="lightbox-counter">{idx + 1} / {photos.length}</div>
+      </div>
+    </div>
+  );
+}
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 function Modal({ title, fields, onConfirm, onClose, confirmLabel = "Запази", initialValues = {} }) {
@@ -240,54 +287,41 @@ export default function App() {
   const [view, setView] = useState({ page: "home", themeId: null, vitrineId: null });
   const [modal, setModal] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // { photos, index }
   const fileRef = useRef();
   const [pendingVitrine, setPendingVitrine] = useState(null);
 
   const isAdmin = !!user;
 
-  // ── Auth ──
   useEffect(() => onAuthStateChanged(auth, u => setUser(u || null)), []);
 
-  // ── Real-time listeners ──
   const themes = useCollection("themes");
-
   const [vitrinesMap, setVitrinesMap] = useState({});
   const [photosMap, setPhotosMap] = useState({});
 
-  // Listen to vitrines for each theme
   useEffect(() => {
     if (!themes.length) return;
     const unsubs = themes.map(t => {
       const q = query(collection(db, "themes", t.id, "vitrines"), orderBy("order"));
       return onSnapshot(q, snap => {
-        setVitrinesMap(prev => ({
-          ...prev,
-          [t.id]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        }));
+        setVitrinesMap(prev => ({ ...prev, [t.id]: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
       });
     });
     return () => unsubs.forEach(u => u());
   }, [themes.map(t => t.id).join(",")]);
 
-  // Listen to photos for each vitrine
   useEffect(() => {
-    const allVitrines = Object.entries(vitrinesMap).flatMap(([tId, vs]) =>
-      vs.map(v => ({ tId, vId: v.id }))
-    );
+    const allVitrines = Object.entries(vitrinesMap).flatMap(([tId, vs]) => vs.map(v => ({ tId, vId: v.id })));
     if (!allVitrines.length) return;
     const unsubs = allVitrines.map(({ tId, vId }) => {
       const q = query(collection(db, "themes", tId, "vitrines", vId, "photos"), orderBy("order"));
       return onSnapshot(q, snap => {
-        setPhotosMap(prev => ({
-          ...prev,
-          [`${tId}_${vId}`]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        }));
+        setPhotosMap(prev => ({ ...prev, [`${tId}_${vId}`]: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
       });
     });
     return () => unsubs.forEach(u => u());
   }, [JSON.stringify(Object.entries(vitrinesMap).flatMap(([tId, vs]) => vs.map(v => `${tId}_${v.id}`)))]);
 
-  // Assemble full data tree
   const fullThemes = themes.map(t => ({
     ...t,
     vitrines: (vitrinesMap[t.id] || []).map(v => ({
@@ -299,13 +333,10 @@ export default function App() {
   const theme = fullThemes.find(t => t.id === view.themeId);
   const vitrine = theme?.vitrines?.find(v => v.id === view.vitrineId);
 
-  // ── Helpers ──
   const nextOrder = arr => arr?.length ? Math.max(...arr.map(x => x.order ?? 0)) + 1 : 0;
 
-  // ── Themes CRUD ──
   const addTheme = async ({ name, desc }) => {
-    const id = `t_${Date.now()}`;
-    await setDoc(doc(db, "themes", id), { name, desc, public: false, order: nextOrder(themes) });
+    await setDoc(doc(db, "themes", `t_${Date.now()}`), { name, desc, public: false, order: nextOrder(themes) });
     setModal(null);
   };
   const editTheme = async (id, { name, desc }) => {
@@ -319,11 +350,9 @@ export default function App() {
   const toggleThemePublic = async (tId, current) =>
     setDoc(doc(db, "themes", tId), { public: !current }, { merge: true });
 
-  // ── Vitrines CRUD ──
   const addVitrine = async ({ name, desc }) => {
-    const id = `v_${Date.now()}`;
     const t = fullThemes.find(x => x.id === view.themeId);
-    await setDoc(doc(db, "themes", view.themeId, "vitrines", id), {
+    await setDoc(doc(db, "themes", view.themeId, "vitrines", `v_${Date.now()}`), {
       name, desc, public: false, cover: null, order: nextOrder(t?.vitrines)
     });
     setModal(null);
@@ -339,7 +368,6 @@ export default function App() {
   const toggleVitrinePublic = async (vId, current) =>
     setDoc(doc(db, "themes", view.themeId, "vitrines", vId), { public: !current }, { merge: true });
 
-  // ── Photos ──
   const handleAddPhoto = (vitrineId) => { setPendingVitrine(vitrineId); fileRef.current.click(); };
 
   const onFileChange = async (e) => {
@@ -347,7 +375,7 @@ export default function App() {
     if (!files.length) return;
     setUploading(true);
     try {
-      const v = vitrine || theme?.vitrines?.find(x => x.id === pendingVitrine);
+      const v = theme?.vitrines?.find(x => x.id === pendingVitrine);
       const baseOrder = nextOrder(v?.photos);
       for (let i = 0; i < files.length; i++) {
         const { url, publicId } = await uploadToCloudinary(files[i]);
@@ -359,7 +387,7 @@ export default function App() {
           await setDoc(doc(db, "themes", view.themeId, "vitrines", pendingVitrine), { cover: url }, { merge: true });
         }
       }
-    } catch (err) {
+    } catch {
       alert("Грешка при качване. Моля опитайте отново.");
     } finally {
       setUploading(false);
@@ -375,9 +403,7 @@ export default function App() {
     await deleteDoc(doc(db, "themes", view.themeId, "vitrines", view.vitrineId, "photos", photoId));
     if (vitrine?.cover === photoUrl) {
       const remaining = vitrine.photos.filter(p => p.id !== photoId);
-      await setDoc(doc(db, "themes", view.themeId, "vitrines", view.vitrineId), {
-        cover: remaining[0]?.url || null
-      }, { merge: true });
+      await setDoc(doc(db, "themes", view.themeId, "vitrines", view.vitrineId), { cover: remaining[0]?.url || null }, { merge: true });
     }
   };
 
@@ -423,9 +449,13 @@ export default function App() {
           <div className="upload-box"><div className="upload-spinner" />Качване на снимки…</div>
         </div>
       )}
+      {lightbox && (
+        <Lightbox photos={lightbox.photos} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
+      )}
 
       <header className="app-header">
-        <span className="app-logo" onClick={goHome}>✦ Minimondo</span>
+        <img src="/minimondo_logo.png" alt="Minimondo" className="app-logo-img" onClick={goHome} />
+        <span className="app-logo-text" onClick={goHome}>Minimondo</span>
         {view.page !== "home" && <>
           <span className="app-logo-sep">›</span>
           <span style={{ fontFamily: "var(--font-ui)", fontSize: ".72rem", letterSpacing: ".08em", color: "var(--muted)", textTransform: "uppercase" }}>
@@ -447,8 +477,8 @@ export default function App() {
           <div className="breadcrumb"><span className="breadcrumb-current">Всички теми</span></div>
           <div className="page-header">
             <div>
-              <div className="page-title">Лична колекция</div>
-              <div className="page-subtitle">Разпределение по теми и витрини</div>
+              <div className="page-title">Музейна Колекция</div>
+              <div className="page-subtitle">Куклена изложба — разпределение по теми</div>
             </div>
           </div>
           <div className="grid">
@@ -456,9 +486,7 @@ export default function App() {
               <div key={t.id} className={`tile${!t.public ? " hidden-tile" : ""}`}>
                 {isAdmin && (
                   <div className="tile-controls">
-                    <button className={`ctrl-btn ctrl-vis${t.public ? " is-public" : ""}`} title={t.public ? "Скрий" : "Публикувай"} onClick={e => { e.stopPropagation(); toggleThemePublic(t.id, t.public); }}>
-                      {t.public ? "👁" : "🚫"}
-                    </button>
+                    <button className={`ctrl-btn ctrl-vis${t.public ? " is-public" : ""}`} title={t.public ? "Скрий" : "Публикувай"} onClick={e => { e.stopPropagation(); toggleThemePublic(t.id, t.public); }}>{t.public ? "👁" : "🚫"}</button>
                     <button className="ctrl-btn ctrl-edit" title="Редактирай" onClick={e => { e.stopPropagation(); setModal({ type: "editTheme", id: t.id }); }}>✎</button>
                     <button className="ctrl-btn ctrl-del" title="Изтрий" onClick={e => { e.stopPropagation(); deleteTheme(t.id); }}>✕</button>
                   </div>
@@ -473,10 +501,7 @@ export default function App() {
             ))}
             {isAdmin && (
               <button className="tile-add" onClick={() => setModal("newTheme")}>
-                <div className="tile-add-inner">
-                  <span className="tile-add-icon">＋</span>
-                  <span className="tile-add-label">Нова тема</span>
-                </div>
+                <div className="tile-add-inner"><span className="tile-add-icon">＋</span><span className="tile-add-label">Нова тема</span></div>
               </button>
             )}
           </div>
@@ -502,9 +527,7 @@ export default function App() {
               <div key={v.id} className={`tile${!v.public ? " hidden-tile" : ""}`}>
                 {isAdmin && (
                   <div className="tile-controls">
-                    <button className={`ctrl-btn ctrl-vis${v.public ? " is-public" : ""}`} title={v.public ? "Скрий" : "Публикувай"} onClick={e => { e.stopPropagation(); toggleVitrinePublic(v.id, v.public); }}>
-                      {v.public ? "👁" : "🚫"}
-                    </button>
+                    <button className={`ctrl-btn ctrl-vis${v.public ? " is-public" : ""}`} title={v.public ? "Скрий" : "Публикувай"} onClick={e => { e.stopPropagation(); toggleVitrinePublic(v.id, v.public); }}>{v.public ? "👁" : "🚫"}</button>
                     <button className="ctrl-btn ctrl-edit" title="Редактирай" onClick={e => { e.stopPropagation(); setModal({ type: "editVitrine", id: v.id }); }}>✎</button>
                     <button className="ctrl-btn ctrl-del" title="Изтрий" onClick={e => { e.stopPropagation(); deleteVitrine(v.id); }}>✕</button>
                   </div>
@@ -519,10 +542,7 @@ export default function App() {
             ))}
             {isAdmin && (
               <button className="tile-add" onClick={() => setModal("newVitrine")}>
-                <div className="tile-add-inner">
-                  <span className="tile-add-icon">＋</span>
-                  <span className="tile-add-label">Нова витрина</span>
-                </div>
+                <div className="tile-add-inner"><span className="tile-add-icon">＋</span><span className="tile-add-label">Нова витрина</span></div>
               </button>
             )}
           </div>
@@ -551,7 +571,7 @@ export default function App() {
             )}
           </div>
           <div className="photo-grid">
-            {(vitrine.photos || []).map(p => {
+            {(vitrine.photos || []).map((p, i) => {
               const isCover = vitrine.cover === p.url;
               return (
                 <div key={p.id} className="photo-card">
@@ -560,7 +580,7 @@ export default function App() {
                       <button className="ctrl-btn ctrl-del" title="Изтрий" onClick={() => deletePhoto(p.id, p.url)}>✕</button>
                     </div>
                   )}
-                  <img src={p.url} alt={p.desc || "снимка"} />
+                  <img src={p.url} alt={p.desc || "снимка"} onClick={() => setLightbox({ photos: vitrine.photos, index: i })} />
                   {isCover && <span className="cover-badge">★ Корица</span>}
                   {isAdmin && !isCover && (
                     <button className="cover-set-btn" onClick={() => setCover(p.url)}>Задай корица</button>
@@ -586,29 +606,15 @@ export default function App() {
           <div className="modal"><LoginScreen onLogin={() => setModal(null)} /></div>
         </div>
       )}
-      {modal === "newTheme" && (
-        <Modal title="Нова тема" confirmLabel="Създай" fields={themeFields}
-          onConfirm={addTheme} onClose={() => setModal(null)} />
-      )}
-      {modal === "newVitrine" && (
-        <Modal title="Нова витрина" confirmLabel="Създай" fields={vitrineFields}
-          onConfirm={addVitrine} onClose={() => setModal(null)} />
-      )}
+      {modal === "newTheme" && <Modal title="Нова тема" confirmLabel="Създай" fields={themeFields} onConfirm={addTheme} onClose={() => setModal(null)} />}
+      {modal === "newVitrine" && <Modal title="Нова витрина" confirmLabel="Създай" fields={vitrineFields} onConfirm={addVitrine} onClose={() => setModal(null)} />}
       {modal?.type === "editTheme" && (() => {
         const t = fullThemes.find(x => x.id === modal.id);
-        return t ? (
-          <Modal title="Редактирай тема" confirmLabel="Запази"
-            initialValues={{ name: t.name, desc: t.desc || "" }} fields={themeFields}
-            onConfirm={vals => editTheme(modal.id, vals)} onClose={() => setModal(null)} />
-        ) : null;
+        return t ? <Modal title="Редактирай тема" confirmLabel="Запази" initialValues={{ name: t.name, desc: t.desc || "" }} fields={themeFields} onConfirm={vals => editTheme(modal.id, vals)} onClose={() => setModal(null)} /> : null;
       })()}
       {modal?.type === "editVitrine" && (() => {
         const v = theme?.vitrines?.find(x => x.id === modal.id);
-        return v ? (
-          <Modal title="Редактирай витрина" confirmLabel="Запази"
-            initialValues={{ name: v.name, desc: v.desc || "" }} fields={vitrineFields}
-            onConfirm={vals => editVitrine(modal.id, vals)} onClose={() => setModal(null)} />
-        ) : null;
+        return v ? <Modal title="Редактирай витрина" confirmLabel="Запази" initialValues={{ name: v.name, desc: v.desc || "" }} fields={vitrineFields} onConfirm={vals => editVitrine(modal.id, vals)} onClose={() => setModal(null)} /> : null;
       })()}
     </>
   );
