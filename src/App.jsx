@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "firebase/auth";
@@ -107,7 +107,7 @@ const GlobalStyle = () => (
     .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
     .photo-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color var(--transition); position: relative; }
     .photo-card:hover { border-color: var(--gold); }
-    .photo-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+    .photo-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; cursor: zoom-in; }
     .photo-desc-edit { width: 100%; padding: 8px 12px; background: var(--surface); border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--cream); min-height: 60px; display: block; }
     .photo-desc-view { padding: 10px 12px; font-size: 0.88rem; color: var(--muted); line-height: 1.5; font-style: italic; }
 
@@ -133,7 +133,9 @@ const GlobalStyle = () => (
     .btn-danger:hover { color: #e08080; border-color: #9b3a3a; }
 
     .app-header { border-bottom: 1px solid var(--border); padding: 0 32px; height: 60px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: rgba(15,14,11,.92); backdrop-filter: blur(12px); z-index: 10; }
-    .app-logo { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: .18em; color: var(--gold); text-transform: uppercase; cursor: pointer; }
+    .app-header { border-bottom: 1px solid var(--border); padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: rgba(15,14,11,.92); backdrop-filter: blur(12px); z-index: 10; }
+    .app-logo-img { height: 44px; width: 44px; object-fit: contain; cursor: pointer; border-radius: 8px; }
+    .app-logo-text { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: .18em; color: var(--gold); text-transform: uppercase; cursor: pointer; }
     .app-logo-sep { color: var(--border); margin: 0 4px; }
     .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 
@@ -177,8 +179,54 @@ const GlobalStyle = () => (
     .upload-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px 40px; text-align: center; font-family: var(--font-ui); font-size: .85rem; color: var(--muted); letter-spacing: .08em; }
     .upload-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* ── Lightbox ── */
+    .lightbox { position: fixed; inset: 0; background: rgba(5,4,3,.96); z-index: 300; display: flex; align-items: center; justify-content: center; animation: fadeIn .2s ease; }
+    .lightbox-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: calc(100vw - 120px); }
+    .lightbox-img { max-width: 100%; max-height: calc(100vh - 180px); object-fit: contain; border-radius: 2px; box-shadow: 0 20px 60px rgba(0,0,0,.6); user-select: none; }
+    .lightbox-close { position: fixed; top: 20px; right: 24px; width: 40px; height: 40px; border-radius: 50%; background: rgba(40,36,30,.9); border: 1px solid var(--border); color: var(--muted); font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); z-index: 301; }
+    .lightbox-close:hover { color: var(--cream); border-color: var(--gold); }
+    .lightbox-arrow { position: fixed; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(40,36,30,.9); border: 1px solid var(--border); color: var(--muted); font-size: 1.3rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); z-index: 301; }
+    .lightbox-arrow:hover { color: var(--cream); border-color: var(--gold); background: rgba(60,54,44,.95); }
+    .lightbox-arrow.prev { left: 16px; }
+    .lightbox-arrow.next { right: 16px; }
+    .lightbox-arrow:disabled { opacity: 0.2; cursor: default; }
+    .lightbox-info { text-align: center; }
+    .lightbox-desc { font-family: var(--font-body); font-style: italic; font-size: 1.05rem; color: var(--cream); opacity: .8; }
+    .lightbox-counter { font-family: var(--font-ui); font-size: 0.68rem; letter-spacing: .1em; color: var(--muted); margin-top: 4px; }
   `}</style>
 );
+
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+function Lightbox({ photos, startIndex, onClose }) {
+  const [idx, setIdx] = useState(startIndex);
+  const photo = photos[idx];
+  const prev = useCallback(() => setIdx(i => Math.max(0, i - 1)), []);
+  const next = useCallback(() => setIdx(i => Math.min(photos.length - 1, i + 1)), [photos.length]);
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, prev, next]);
+  return (
+    <div className="lightbox" onClick={e => e.target === e.currentTarget && onClose()}>
+      <button className="lightbox-close" onClick={onClose}>✕</button>
+      <button className="lightbox-arrow prev" onClick={prev} disabled={idx === 0}>‹</button>
+      <div className="lightbox-inner">
+        <img className="lightbox-img" src={photo.url} alt={photo.desc || ""} />
+        <div className="lightbox-info">
+          {photo.desc && <div className="lightbox-desc">{photo.desc}</div>}
+          <div className="lightbox-counter">{idx + 1} / {photos.length}</div>
+        </div>
+      </div>
+      <button className="lightbox-arrow next" onClick={next} disabled={idx === photos.length - 1}>›</button>
+    </div>
+  );
+}
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 function Modal({ title, fields, onConfirm, onClose, confirmLabel = "Запази", initialValues = {} }) {
@@ -258,6 +306,7 @@ export default function App() {
   const [view, setView] = useState({ page: "home", themeId: null, vitrineId: null });
   const [modal, setModal] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
   const fileRef = useRef();
   const [pendingVitrine, setPendingVitrine] = useState(null);
 
@@ -427,6 +476,9 @@ export default function App() {
     <>
       <GlobalStyle />
       <input type="file" accept="image/*" multiple ref={fileRef} style={{ display: "none" }} onChange={onFileChange} />
+      {lightbox && (
+        <Lightbox photos={lightbox.photos} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
+      )}
       {uploading && (
         <div className="upload-overlay">
           <div className="upload-box">
@@ -438,7 +490,8 @@ export default function App() {
 
       {/* Header */}
       <header className="app-header">
-        <span className="app-logo" onClick={goHome}>✦ Minimondo</span>
+        <img src="/minimondo_logo.png" alt="Minimondo" className="app-logo-img" onClick={goHome} />
+        <span className="app-logo-text" onClick={goHome}>Minimondo</span>
         {view.page !== "home" && <>
           <span className="app-logo-sep">›</span>
           <span style={{ fontFamily: "var(--font-ui)", fontSize: ".72rem", letterSpacing: ".08em", color: "var(--muted)", textTransform: "uppercase" }}>
@@ -565,7 +618,7 @@ export default function App() {
             )}
           </div>
           <div className="photo-grid">
-            {(vitrine.photos || []).map(p => {
+            {(vitrine.photos || []).map((p, i) => {
               const isCover = vitrine.cover === p.url;
               return (
                 <div key={p.id} className="photo-card">
@@ -574,7 +627,7 @@ export default function App() {
                       <button className="ctrl-btn ctrl-del" title="Изтрий" onClick={() => deletePhoto(p.id, p.url)}>✕</button>
                     </div>
                   )}
-                  <img src={p.url} alt={p.desc || "снимка"} />
+                  <img src={p.url} alt={p.desc || "снимка"} onClick={() => setLightbox({ photos: vitrine.photos, index: i })} />
                   {isCover && <span className="cover-badge">★ Корица</span>}
                   {isAdmin && !isCover && (
                     <button className="cover-set-btn" onClick={() => setCover(p.url)}>Задай корица</button>
