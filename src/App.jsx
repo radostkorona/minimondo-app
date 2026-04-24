@@ -309,6 +309,8 @@ export default function App() {
   const [lightbox, setLightbox] = useState(null);
   const fileRef = useRef();
   const [pendingVitrine, setPendingVitrine] = useState(null);
+  const themeCoverRef = useRef();
+  const [pendingThemeCover, setPendingThemeCover] = useState(null);
 
   const isAdmin = !!user;
 
@@ -317,36 +319,61 @@ export default function App() {
     return onAuthStateChanged(auth, u => setUser(u || null));
   }, []);
 
-  // ── Firestore listener ──
+  // ── Firestore real-time listeners ──
+  const [vitrinesMap, setVitrinesMap] = useState({});
+  const [photosMap, setPhotosMap] = useState({});
+
+  // Listen to themes
   useEffect(() => {
     const q = query(collection(db, "themes"), orderBy("order"));
-    return onSnapshot(q, async snap => {
-      const themesData = await Promise.all(snap.docs.map(async tDoc => {
-        const t = { id: tDoc.id, ...tDoc.data(), vitrines: [] };
-        const vSnap = await new Promise(res => {
-          const unsub = onSnapshot(
-            query(collection(db, "themes", tDoc.id, "vitrines"), orderBy("order")),
-            s => { unsub(); res(s); }
-          );
-        });
-        t.vitrines = await Promise.all(vSnap.docs.map(async vDoc => {
-          const v = { id: vDoc.id, ...vDoc.data(), photos: [] };
-          const pSnap = await new Promise(res => {
-            const unsub = onSnapshot(
-              query(collection(db, "themes", tDoc.id, "vitrines", vDoc.id, "photos"), orderBy("order")),
-              s => { unsub(); res(s); }
-            );
-          });
-          v.photos = pSnap.docs.map(p => ({ id: p.id, ...p.data() }));
-          return v;
-        }));
-        return t;
-      }));
-      setThemes(themesData);
+    return onSnapshot(q, snap => {
+      setThemes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
   }, []);
 
-  const theme = themes.find(t => t.id === view.themeId);
+  // Listen to vitrines for each theme
+  useEffect(() => {
+    if (!themes.length) return;
+    const unsubs = themes.map(t => {
+      const q = query(collection(db, "themes", t.id, "vitrines"), orderBy("order"));
+      return onSnapshot(q, snap => {
+        setVitrinesMap(prev => ({
+          ...prev,
+          [t.id]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        }));
+      });
+    });
+    return () => unsubs.forEach(u => u());
+  }, [themes.map(t => t.id).join(",")]);
+
+  // Listen to photos for each vitrine
+  useEffect(() => {
+    const allVitrines = Object.entries(vitrinesMap).flatMap(([tId, vs]) =>
+      vs.map(v => ({ tId, vId: v.id }))
+    );
+    if (!allVitrines.length) return;
+    const unsubs = allVitrines.map(({ tId, vId }) => {
+      const q = query(collection(db, "themes", tId, "vitrines", vId, "photos"), orderBy("order"));
+      return onSnapshot(q, snap => {
+        setPhotosMap(prev => ({
+          ...prev,
+          [`${tId}_${vId}`]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        }));
+      });
+    });
+    return () => unsubs.forEach(u => u());
+  }, [JSON.stringify(Object.entries(vitrinesMap).flatMap(([tId, vs]) => vs.map(v => `${tId}_${v.id}`)))]);
+
+  // Assemble full data tree
+  const fullThemes = themes.map(t => ({
+    ...t,
+    vitrines: (vitrinesMap[t.id] || []).map(v => ({
+      ...v,
+      photos: photosMap[`${t.id}_${v.id}`] || []
+    }))
+  }));
+
+  const theme = fullThemes.find(t => t.id === view.themeId);
   const vitrine = theme?.vitrines?.find(v => v.id === view.vitrineId);
 
   // ── Helpers ──
@@ -355,7 +382,7 @@ export default function App() {
   // ── Themes CRUD ──
   const addTheme = async ({ name, desc }) => {
     const id = `t_${Date.now()}`;
-    await setDoc(doc(db, "themes", id), { name, desc, public: false, order: nextOrder(themes) });
+    await setDoc(doc(db, "themes", id), { name, desc, public: false, order: nextOrder(fullThemes) });
     setModal(null);
   };
   const editTheme = async (id, { name, desc }) => {
@@ -370,10 +397,19 @@ export default function App() {
     await setDoc(doc(db, "themes", tId), { public: !current }, { merge: true });
   };
 
+  const setThemeCover = async (tId, file) => {
+    try {
+      const { url } = await uploadToCloudinary(file);
+      await setDoc(doc(db, "themes", tId), { cover: url }, { merge: true });
+    } catch {
+      alert("Грешка при качване на корица.");
+    }
+  };
+
   // ── Vitrines CRUD ──
   const addVitrine = async ({ name, desc }) => {
     const id = `v_${Date.now()}`;
-    const t = themes.find(x => x.id === view.themeId);
+    const t = fullThemes.find(x => x.id === view.themeId);
     await setDoc(doc(db, "themes", view.themeId, "vitrines", id), {
       name, desc, public: false, cover: null, order: nextOrder(t?.vitrines)
     });
@@ -440,6 +476,7 @@ export default function App() {
   };
 
   const getThemeCover = (t) => {
+    if (t.cover) return t.cover;
     for (const v of (t.vitrines || [])) {
       if (v.cover) return v.cover;
       if (v.photos?.length) return v.photos[0].url;
@@ -452,7 +489,7 @@ export default function App() {
   const goVitrine = (tId, vId) => setView({ page: "vitrine", themeId: tId, vitrineId: vId });
 
   // ── Visibility filter for guests ──
-  const visibleThemes = isAdmin ? themes : themes.filter(t => t.public);
+  const visibleThemes = isAdmin ? fullThemes : fullThemes.filter(t => t.public);
   const visibleVitrines = (t) => isAdmin ? (t?.vitrines || []) : (t?.vitrines || []).filter(v => v.public);
 
   const themeFields = [
@@ -476,6 +513,15 @@ export default function App() {
     <>
       <GlobalStyle />
       <input type="file" accept="image/*" multiple ref={fileRef} style={{ display: "none" }} onChange={onFileChange} />
+      <input type="file" accept="image/*" ref={themeCoverRef} style={{ display: "none" }} onChange={async e => {
+        const file = e.target.files[0];
+        if (!file || !pendingThemeCover) return;
+        setUploading(true);
+        await setThemeCover(pendingThemeCover, file);
+        setUploading(false);
+        setPendingThemeCover(null);
+        e.target.value = "";
+      }} />
       {lightbox && (
         <Lightbox photos={lightbox.photos} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
       )}
@@ -562,7 +608,12 @@ export default function App() {
               <div className="page-title">{theme.name}</div>
               {theme.desc && <div className="page-subtitle">{theme.desc}</div>}
             </div>
-            {isAdmin && <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "editTheme", id: theme.id })}>✎ Редактирай тема</button>}
+            {isAdmin && (
+              <div className="page-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => { setPendingThemeCover(theme.id); themeCoverRef.current.click(); }}>🖼 Корица на тема</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "editTheme", id: theme.id })}>✎ Редактирай тема</button>
+              </div>
+            )}
           </div>
           <div className="grid">
             {visibleVitrines(theme).map(v => (
@@ -665,7 +716,7 @@ export default function App() {
           onConfirm={addVitrine} onClose={() => setModal(null)} />
       )}
       {modal?.type === "editTheme" && (() => {
-        const t = themes.find(x => x.id === modal.id);
+        const t = fullThemes.find(x => x.id === modal.id);
         return t ? (
           <Modal title="Редактирай тема" confirmLabel="Запази"
             initialValues={{ name: t.name, desc: t.desc || "" }}
