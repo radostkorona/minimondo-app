@@ -68,7 +68,7 @@ const GlobalStyle = () => (
       --font-ui: 'Lato', sans-serif;
       --transition: 220ms ease;
     }
-    body { background: var(--bg); color: var(--cream); font-family: var(--font-body); }
+    body { background: var(--bg); color: var(--cream); font-family: var(--font-body); overflow-x: hidden; width: 100%; }
     button { cursor: pointer; border: none; background: none; font-family: inherit; color: inherit; }
     input, textarea { font-family: var(--font-body); color: var(--cream); background: transparent; border: none; outline: none; }
     textarea { resize: vertical; }
@@ -107,7 +107,7 @@ const GlobalStyle = () => (
     .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
     .photo-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color var(--transition); position: relative; }
     .photo-card:hover { border-color: var(--gold); }
-    .photo-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; cursor: zoom-in; }
+    .photo-card img { width: 100%; height: auto; display: block; cursor: zoom-in; }
     .photo-desc-edit { width: 100%; padding: 8px 12px; background: var(--surface); border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--cream); min-height: 60px; display: block; }
     .photo-desc-view { padding: 10px 12px; font-size: 0.88rem; color: var(--muted); line-height: 1.5; font-style: italic; }
 
@@ -129,6 +129,10 @@ const GlobalStyle = () => (
     .btn-ghost { color: var(--muted); border-color: var(--border); }
     .btn-ghost:hover { color: var(--cream); border-color: var(--muted); }
     .btn-sm { padding: 6px 14px; font-size: 0.68rem; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: 0.7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: color var(--transition); background: none; border: none; padding: 0; margin-bottom: 20px; }
+    .back-btn:hover { color: var(--gold); }
+    .scroll-top-btn { position: fixed; bottom: 24px; right: 24px; width: 40px; height: 40px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); z-index: 50; }
+    .scroll-top-btn:hover { border-color: var(--gold); color: var(--gold); }
     .btn-danger { color: #c06060; border-color: #6a3030; }
     .btn-danger:hover { color: #e08080; border-color: #9b3a3a; }
 
@@ -139,7 +143,7 @@ const GlobalStyle = () => (
     .app-logo-sep { color: var(--border); margin: 0 4px; }
     .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 
-    .main { padding: 40px 32px; max-width: 1200px; margin: 0 auto; }
+    .main { padding: 40px 32px; max-width: 1200px; margin: 0 auto; } @media (max-width: 600px) { .main { padding: 20px 16px; } .app-header { padding: 0 16px; } .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } .photo-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; } }
 
     .ornament { display: flex; align-items: center; gap: 12px; margin-bottom: 36px; color: var(--border); font-size: 0.7rem; letter-spacing: .2em; }
     .ornament-line { flex: 1; height: 1px; background: var(--border); }
@@ -158,10 +162,9 @@ const GlobalStyle = () => (
     .photo-card:hover .photo-controls { opacity: 1; }
 
     /* cover badge / button */
-    .cover-badge { position: absolute; bottom: 6px; left: 6px; background: rgba(201,168,76,.92); color: var(--bg); font-family: var(--font-ui); font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 2px; pointer-events: none; }
-    .cover-set-btn { position: absolute; bottom: 6px; left: 6px; background: rgba(20,18,14,.78); color: var(--muted); font-family: var(--font-ui); font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 2px; border: 1px solid var(--border); cursor: pointer; transition: all var(--transition); opacity: 0; }
-    .photo-card:hover .cover-set-btn { opacity: 1; }
-    .cover-set-btn:hover { background: rgba(201,168,76,.88); color: var(--bg); border-color: var(--gold); }
+    .cover-badge { display: block; width: 100%; text-align: center; background: rgba(201,168,76,.15); color: var(--gold); font-family: var(--font-ui); font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; padding: 4px 8px; border-top: 1px solid rgba(201,168,76,.3); }
+    .cover-set-btn { display: block; width: 100%; text-align: center; background: var(--surface); color: var(--muted); font-family: var(--font-ui); font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-top: 1px solid var(--border); cursor: pointer; transition: all var(--transition); }
+    .cover-set-btn:hover { background: rgba(201,168,76,.15); color: var(--gold); border-color: rgba(201,168,76,.3); }
 
     /* visibility badge */
     .vis-badge { position: absolute; top: 6px; left: 6px; font-family: var(--font-ui); font-size: .58rem; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; pointer-events: none; }
@@ -306,6 +309,7 @@ export default function App() {
   const [view, setView] = useState({ page: "home", themeId: null, vitrineId: null });
   const [modal, setModal] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const fileRef = useRef();
   const [pendingVitrine, setPendingVitrine] = useState(null);
@@ -522,6 +526,9 @@ export default function App() {
         setPendingThemeCover(null);
         e.target.value = "";
       }} />
+      {showScrollTop && (
+        <button className="scroll-top-btn" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} title="Нагоре">↑</button>
+      )}
       {lightbox && (
         <Lightbox photos={lightbox.photos} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
       )}
@@ -557,11 +564,11 @@ export default function App() {
         {/* HOME */}
         {view.page === "home" && <>
           <div className="ornament"><div className="ornament-line" /><span>ТЕМИ</span><div className="ornament-line" /></div>
-          <div className="breadcrumb"><span className="breadcrumb-current">Всички теми</span></div>
           <div className="page-header">
             <div>
               <div className="page-title">Лична колекция</div>
               <div className="page-subtitle">Разпределение по теми и витрини</div>
+              <div style={{marginTop: "8px", fontFamily: "var(--font-ui)", fontSize: "0.7rem", letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)"}}>Всички теми</div>
             </div>
           </div>
           <div className="grid">
@@ -598,11 +605,7 @@ export default function App() {
         {/* THEME */}
         {view.page === "theme" && theme && <>
           <div className="ornament"><div className="ornament-line" /><span>ВИТРИНИ</span><div className="ornament-line" /></div>
-          <div className="breadcrumb">
-            <span className="breadcrumb-link" onClick={goHome}>Теми</span>
-            <span className="breadcrumb-sep">›</span>
-            <span className="breadcrumb-current">{theme.name}</span>
-          </div>
+          <button className="back-btn" onClick={goHome}>‹ Назад към теми</button>
           <div className="page-header">
             <div>
               <div className="page-title">{theme.name}</div>
@@ -649,13 +652,7 @@ export default function App() {
         {/* VITRINE */}
         {view.page === "vitrine" && vitrine && <>
           <div className="ornament"><div className="ornament-line" /><span>СНИМКИ</span><div className="ornament-line" /></div>
-          <div className="breadcrumb">
-            <span className="breadcrumb-link" onClick={goHome}>Теми</span>
-            <span className="breadcrumb-sep">›</span>
-            <span className="breadcrumb-link" onClick={() => goTheme(theme.id)}>{theme.name}</span>
-            <span className="breadcrumb-sep">›</span>
-            <span className="breadcrumb-current">{vitrine.name}</span>
-          </div>
+          <button className="back-btn" onClick={() => goTheme(theme.id)}>‹ Назад към {theme.name}</button>
           <div className="page-header">
             <div>
               <div className="page-title">{vitrine.name}</div>
@@ -679,12 +676,12 @@ export default function App() {
                     </div>
                   )}
                   <img src={p.url} alt={p.desc || "снимка"} onClick={() => setLightbox({ photos: vitrine.photos, index: i })} />
-                  {isCover && <span className="cover-badge">★ Корица</span>}
-                  {isAdmin && !isCover && (
-                    <button className="cover-set-btn" onClick={() => setCover(p.url)}>Задай корица</button>
+                  {isAdmin && (isCover
+                    ? <span className="cover-badge">★ Корица</span>
+                    : <button className="cover-set-btn" onClick={() => setCover(p.url)}>Задай корица</button>
                   )}
                   {isAdmin
-                    ? <textarea className="photo-desc-edit" value={p.desc || ""} onChange={e => updatePhotoDesc(p.id, e.target.value)} placeholder="Описание на снимката…" rows={2} />
+                    ? <PhotoDesc key={p.id} photoId={p.id} initialDesc={p.desc} onSave={updatePhotoDesc} />
                     : p.desc ? <div className="photo-desc-view">{p.desc}</div> : null
                   }
                 </div>
