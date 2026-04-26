@@ -303,6 +303,22 @@ function LoginScreen({ onLogin }) {
 }
 
 // ── App ────────────────────────────────────────────────────────────────────
+// ── PhotoDesc — local state to avoid cursor jump ──────────────────────────
+function PhotoDesc({ photoId, initialDesc, onSave }) {
+  const [desc, setDesc] = useState(initialDesc || "");
+  useEffect(() => { setDesc(initialDesc || ""); }, [photoId]);
+  return (
+    <textarea
+      className="photo-desc-edit"
+      value={desc}
+      onChange={e => setDesc(e.target.value)}
+      onBlur={() => onSave(photoId, desc)}
+      placeholder="Описание на снимката…"
+      rows={2}
+    />
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState(undefined); // undefined = loading
   const [themes, setThemes] = useState([]);
