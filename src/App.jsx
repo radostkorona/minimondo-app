@@ -339,6 +339,12 @@ export default function App() {
     return onAuthStateChanged(auth, u => setUser(u || null));
   }, []);
 
+  useEffect(() => {
+    const handler = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", handler);
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
   // ── Firestore real-time listeners ──
   const [vitrinesMap, setVitrinesMap] = useState({});
   const [photosMap, setPhotosMap] = useState({});
